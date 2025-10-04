@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Resolver Ax=b — Inversa, Jacobi, Seidel, LU + Gráfico</title>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <style>
+    :root { --bg:#0f172a; --card:#111827; --ink:#e5e7eb; --muted:#94a3b8; --acc:#38bdf8; }
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--ink)}
+    .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+    .title{font-size:26px;font-weight:800;margin:4px 0 12px}
+    .subtitle{color:var(--muted);margin-top:-6px}
+    .card{background:linear-gradient(180deg,#0b1220,#0a0f1b 60%,#0b1220);border:1px solid #1f2937;border-radius:16px;box-shadow:0 10px 30px #00000066}
+    .grid{display:grid;gap:16px}
+    .grid-2{grid-template-columns:1fr 1fr}
+    .pad{padding:16px}
+    .input{width:100px;padding:8px 10px;border-radius:10px;border:1px solid #334155;background:#0b1220;color:#e5e7eb}
+    .input:focus{outline:2px solid var(--acc)}
+    .btn{padding:10px 14px;border:1px solid #334155;border-radius:12px;background:#0b1220;color:#e5e7eb;cursor:pointer}
+    .btn:hover{border-color:#475569}
+    .btn.primary{background:linear-gradient(90deg,#0891b2,#0ea5e9);border:none}
+    .muted{color:var(--muted)}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .tab{padding:10px 12px;border:1px solid #1f2937;border-radius:12px;cursor:pointer;background:#0b1220;color:#cbd5e1}
+    .tab.active{background:#0ea5e9;color:#0b1220;border-color:#38bdf8}
+    .panel{display:none;margin-top:12px}
+    .panel.active{display:block}
+    table{border-collapse:collapse}
+    td,th{border:1px solid #1f2937;padding:6px 8px;text-align:center}
+    .bar{height:1px;background:#1f2937;margin:16px 0}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .foot{color:#64748b;font-size:12px;margin-top:10px}
+    details{margin-top:10px}
+    details summary{cursor:pointer;color:#93c5fd}
+    .nice h4{margin:8px 0 4px}
+    .nice ul{margin:6px 0 0 18px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">Resolver Ax=b (3×3) — Inversa · Jacobi · Gauss‑Seidel · LU · Gráfico 3D</div>
+
+    <!-- Consigna del ejercicio -->
+    <div class="card pad" style="margin-bottom:12px">
+      <h3>Consigna del ejercicio</h3>
+      <p>Se desea mezclar material de <b>3 canteras</b> para obtener exactamente los siguientes volúmenes de cada componente: <b>arena = 4800 m³</b>, <b>grano fino = 5810 m³</b>, <b>grano grueso = 5690 m³</b>. La composición por m³ de material de cada cantera es:</p>
+      <pre class="mono">A = [[0.52, 0.20, 0.25],
+     [0.30, 0.50, 0.20],
+     [0.18, 0.30, 0.55]],   b = [4800, 5810, 5690]</pre>
+      <p>Hallar los m³ a transportar de cada cantera (<i>x₁, x₂, x₃</i>) resolviendo el sistema <b>A·x = b</b> por distintos métodos numéricos.</p>
+    </div>
+
+    <div class="card pad">
+      <div class="grid grid-2">
+        <div>
+          <h3>Entrada de datos</h3>
+          <div class="row">
+            <button class="btn" id="loadDefaults">Cargar datos por defecto</button>
+            <span class="muted">(o edita manualmente)</span>
+          </div>
+          <div style="margin-top:10px">
+            <div class="muted">Matriz A (3×3)</div>
+            <table style="margin-top:6px">
+              <tbody>
+                <tr>
+                  <td><input class="input" id="a11"/></td>
+                  <td><input class="input" id="a12"/></td>
+                  <td><input class="input" id="a13"/></td>
+                </tr>
+                <tr>
+                  <td><input class="input" id="a21"/></td>
+                  <td><input class="input" id="a22"/></td>
+                  <td><input class="input" id="a23"/></td>
+                </tr>
+                <tr>
+                  <td><input class="input" id="a31"/></td>
+                  <td><input class="input" id="a32"/></td>
+                  <td><input class="input" id="a33"/></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top:10px">
+            <div class="muted">Vector b</div>
+            <div class="row">
+              <input class="input" id="b1"/>
+              <input class="input" id="b2"/>
+              <input class="input" id="b3"/>
+            </div>
+          </div>
+          <div style="margin-top:10px">
+            <div class="muted">Parámetros iterativos</div>
+            <div class="row">
+              <label>Tolerancia <input class="input" id="tol"/></label>
+              <label>Máx. iteraciones <input class="input" id="maxit"/></label>
+            </div>
+            <div class="foot">Sugerencia: Jacobi suele usar 1e-8 y Seidel 1e-4. Puedes escribir uno aquí (se usa en cada método si lo dejas).</div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn primary" id="solveAll">Resolver en todas las pestañas</button>
+          </div>
+        </div>
+        <div>
+          <h3>Ayuda rápida</h3>
+          <ul>
+            <li>Los resultados muestran <b>valores con decimales</b> y una <b>interpretación</b> con m³ truncados.</li>
+            <li>En LU, puedes desplegar <b>L⁻¹</b> y <b>U⁻¹</b> si quieres ver el detalle.</li>
+            <li>El gráfico 3D dibuja los 3 planos y marca la intersección.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-panel="inv">Inversa A</button>
+      <button class="tab" data-panel="jacobi">Jacobi</button>
+      <button class="tab" data-panel="seidel">Gauss‑Seidel</button>
+      <button class="tab" data-panel="lu">LU</button>
+      <button class="tab" data-panel="plot">Gráfico 3D</button>
+    </div>
+
+    <!-- Panel Inversa -->
+    <div class="panel active card pad" id="panel-inv">
+      <div class="row"><button class="btn" id="solveInv">Resolver por Inversa</button></div>
+      <div class="bar"></div>
+      <div id="outInv"></div>
+    </div>
+
+    <!-- Panel Jacobi -->
+    <div class="panel card pad" id="panel-jacobi">
+      <div class="row"><button class="btn" id="solveJacobi">Resolver por Jacobi</button></div>
+      <div class="bar"></div>
+      <div id="outJacobi"></div>
+    </div>
+
+    <!-- Panel Seidel -->
+    <div class="panel card pad" id="panel-seidel">
+      <div class="row"><button class="btn" id="solveSeidel">Resolver por Gauss‑Seidel</button></div>
+      <div class="bar"></div>
+      <div id="outSeidel"></div>
+    </div>
+
+    <!-- Panel LU -->
+    <div class="panel card pad" id="panel-lu">
+      <div class="row"><button class="btn" id="solveLU">Resolver por LU</button></div>
+      <div class="bar"></div>
+      <div id="outLU"></div>
+    </div>
+
+    <!-- Panel Plot -->
+    <div class="panel card pad" id="panel-plot">
+      <div class="row"><button class="btn" id="drawPlot">Dibujar planos + intersección</button></div>
+      <div class="bar"></div>
+      <div id="plot3d" style="height:540px"></div>
+    </div>
+  </div>
+
+<script>
+// ---------------------- Utilidades ----------------------
+const $ = (id)=>document.getElementById(id);
+function toNum(v){ const x = parseFloat(String(v).replace(",",".")); return isFinite(x)?x:0; }
+function readInputs(){
+  const A = [
+    [toNum($("a11").value), toNum($("a12").value), toNum($("a13").value)],
+    [toNum($("a21").value), toNum($("a22").value), toNum($("a23").value)],
+    [toNum($("a31").value), toNum($("a32").value), toNum($("a33").value)]
+  ];
+  const b = [toNum($("b1").value), toNum($("b2").value), toNum($("b3").value)];
+  const tolVal = tolInput();
+  const maxitVal = parseInt($("maxit").value||"20000",10);
+  return {A,b,tol:tolVal,maxit:maxitVal};
+}
+function tolInput(){ const t = ($("tol").value||"").trim(); return t? parseFloat(t): null; }
+function fmtNum(x){ return Math.abs(x)<1e-12? '0' : Number(x).toFixed(6); }
+function fmtArr(v){ return '['+v.map(fmtNum).join(', ')+']'; }
+function fmtMat(M){ return '<pre class="mono">'+M.map(r=> '['+r.map(fmtNum).join(', ')+']').join('\n')+'</pre>'; }
+function clone(M){ return M.map(r=>r.slice()); }
+
+// ---------------------- Álgebra básica 3x3 ----------------------
+function matVec(A,x){ return A.map(r=> r[0]*x[0]+r[1]*x[1]+r[2]*x[2]); }
+function subVec(a,b){ return a.map((v,i)=>v-b[i]); }
+function normInf(v){ return Math.max(...v.map(x=>Math.abs(x))); }
+function matMul(A,B){ const C=[[0,0,0],[0,0,0],[0,0,0]]; for(let i=0;i<3;i++)for(let j=0;j<3;j++)for(let k=0;k<3;k++)C[i][j]+=A[i][k]*B[k][j]; return C; }
+function eye3(){ return [[1,0,0],[0,1,0],[0,0,1]]; }
+
+function inv3(A){ // por Gauss-Jordan
+  const n=3; const M = A.map((r,i)=>r.concat(eye3()[i]));
+  for(let i=0;i<n;i++){
+    let piv=i; for(let r=i+1;r<n;r++) if(Math.abs(M[r][i])>Math.abs(M[piv][i])) piv=r;
+    if(Math.abs(M[piv][i])<1e-15) throw Error('A es singular');
+    if(piv!==i){ const tmp=M[i]; M[i]=M[piv]; M[piv]=tmp; }
+    const pivv=M[i][i]; for(let j=0;j<2*n;j++) M[i][j]/=pivv;
+    for(let r=0;r<n;r++) if(r!==i){ const f=M[r][i]; for(let j=0;j<2*n;j++) M[r][j]-=f*M[i][j]; }
+  }
+  return M.map(r=>r.slice(3,6));
+}
+
+function solveInv(A,b){ const Ainv=inv3(A); const x=[0,0,0]; for(let i=0;i<3;i++) x[i]=Ainv[i][0]*b[0]+Ainv[i][1]*b[1]+Ainv[i][2]*b[2]; return {x,Ainv}; }
+
+function jacobi(A,b, tol=1e-8, maxit=20000){ let x=[0,0,0], xnew=[0,0,0];
+  for(let it=1; it<=maxit; it++){
+    for(let i=0;i<3;i++){
+      const s = A[i].reduce((acc,v,j)=> acc + (j!==i?v*x[j]:0), 0);
+      xnew[i] = (b[i]-s)/A[i][i];
+    }
+    const err = normInf(subVec(xnew,x));
+    if(err <= tol) return {x:xnew, it, converged:true};
+    x = xnew.slice();
+  }
+  return {x:xnew, it:maxit, converged:false};
+}
+
+function seidel(A,b, tol=1e-4, maxit=20000){ let x=[0,0,0];
+  for(let it=1; it<=maxit; it++){
+    const xold = x.slice();
+    for(let i=0;i<3;i++){
+      let s=0; for(let j=0;j<3;j++) if(j!==i) s += A[i][j]*(j<i? x[j] : xold[j]);
+      x[i] = (b[i]-s)/A[i][i];
+    }
+    const err = normInf(subVec(x,xold));
+    if(err <= tol) return {x, it, converged:true};
+  }
+  return {x, it:maxit, converged:false};
+}
+
+function luDecompose(A){ // pivoteo parcial; L diagonal unitaria
+  const n=3; const P=eye3(); const L=[[0,0,0],[0,0,0],[0,0,0]]; const U=clone(A);
+  for(let k=0;k<n;k++){
+    let piv=k; for(let r=k+1;r<n;r++) if(Math.abs(U[r][k])>Math.abs(U[piv][k])) piv=r;
+    if(Math.abs(U[piv][k])<1e-15) throw Error('Matriz singular en LU');
+    if(piv!==k){ [U[k],U[piv]]=[U[piv],U[k]]; [P[k],P[piv]]=[P[piv],P[k]]; if(k>0){ for(let c=0;c<k;c++){ const tmp=L[k][c]; L[k][c]=L[piv][c]; L[piv][c]=tmp; } } }
+    L[k][k]=1;
+    for(let i=k+1;i<n;i++){ L[i][k]=U[i][k]/U[k][k]; for(let j=k;j<n;j++) U[i][j]-=L[i][k]*U[k][j]; }
+  }
+  return {P,L,U};
+}
+
+function forwardSub(L,b){ const n=3, y=[0,0,0]; for(let i=0;i<n;i++){ let s=0; for(let j=0;j<i;j++) s+=L[i][j]*y[j]; y[i]=(b[i]-s)/L[i][i]; } return y; }
+function backSub(U,y){ const n=3, x=[0,0,0]; for(let i=n-1;i>=0;i--){ let s=0; for(let j=i+1;j<n;j++) s+=U[i][j]*x[j]; x[i]=(y[i]-s)/U[i][i]; } return x; }
+function permVec(P,b){ const out=[0,0,0]; for(let i=0;i<3;i++){ const j=P[i].indexOf(1); out[i]=b[j]; } return out; }
+
+function solveLU(A,b){ const {P,L,U}=luDecompose(A); const Pb=permVec(P,b); const y=forwardSub(L,Pb); const x=backSub(U,y); return {x,L,U}; }
+
+// ---------------------- UI & Acciones ----------------------
+const defaults = {
+  A:[[0.52,0.20,0.25],[0.30,0.50,0.20],[0.18,0.30,0.55]],
+  b:[4800,5810,5690], tolJacobi:1e-8, tolSeidel:1e-4, maxit:20000
+};
+
+function fillDefaults(){
+  const {A,b} = defaults;
+  [["a11","a12","a13"],["a21","a22","a23"],["a31","a32","a33"]]
+    .forEach((row,i)=>row.forEach((id,j)=>$(id).value=A[i][j]));
+  ["b1","b2","b3"].forEach((id,i)=> $(id).value = b[i]);
+  // Por usabilidad, cargamos 0.0001 (1e-4) por defecto aquí
+  $("tol").value = '0.0001';
+  $("maxit").value = defaults.maxit;
+}
+
+$("loadDefaults").addEventListener('click', fillDefaults);
+$("solveAll").addEventListener('click', ()=>{ solveInvBtn(); solveJacobiBtn(); solveSeidelBtn(); solveLUBtn(); });
+
+function friendlyInterpretation(x){
+  const t = x.map(v=> Math.trunc(v));
+  return `<ul class="nice"><li><b>Interpretación (m³ aproximados):</b></li>
+  <li>Cantera 1 (x₁): <b>${t[0]}</b> m³</li>
+  <li>Cantera 2 (x₂): <b>${t[1]}</b> m³</li>
+  <li>Cantera 3 (x₃): <b>${t[2]}</b> m³</li></ul>`;
+}
+
+function solveInvBtn(){
+  try{
+    const {A,b}=readInputs(); const {x,Ainv}=solveInv(A,b);
+    $("outInv").innerHTML = `
+      <h4>Método: Inversa de A</h4>
+      <div class="nice">
+        <h4>Solución (x):</h4>
+        <div class="mono">x = ${fmtArr(x)}</div>
+        ${friendlyInterpretation(x)}
+        <details><summary>Ver A⁻¹</summary>${fmtMat(Ainv)}</details>
+      </div>`;
+  } catch(e){ $("outInv").textContent = 'Error: '+e.message; }
+}
+
+function solveJacobiBtn(){
+  try{
+    const {A,b,tol,maxit}=readInputs(); const tolUse = (tol ?? defaults.tolJacobi); const {x,it,converged}=jacobi(A,b,tolUse, maxit);
+    $("outJacobi").innerHTML = `
+      <h4>Método: Jacobi</h4>
+      <div class="nice">
+        <div>Iteraciones realizadas: <b>${it}</b></div>
+        <div>Tolerancia usada: <b>${tolUse}</b></div>
+        <div>¿Convergió?: <b>${converged? 'Sí':'No'}</b></div>
+        <h4>Solución (x):</h4>
+        <div class="mono">x = ${fmtArr(x)}</div>
+        ${friendlyInterpretation(x)}
+      </div>`;
+  } catch(e){ $("outJacobi").textContent = 'Error: '+e.message; }
+}
+
+function solveSeidelBtn(){
+  try{
+    const {A,b,tol,maxit}=readInputs(); const tolUse = (tol ?? defaults.tolSeidel); const {x,it,converged}=seidel(A,b,tolUse, maxit);
+    $("outSeidel").innerHTML = `
+      <h4>Método: Gauss‑Seidel</h4>
+      <div class="nice">
+        <div>Iteraciones realizadas: <b>${it}</b></div>
+        <div>Tolerancia usada: <b>${tolUse}</b></div>
+        <div>¿Convergió?: <b>${converged? 'Sí':'No'}</b></div>
+        <h4>Solución (x):</h4>
+        <div class="mono">x = ${fmtArr(x)}</div>
+        ${friendlyInterpretation(x)}
+      </div>`;
+  } catch(e){ $("outSeidel").textContent = 'Error: '+e.message; }
+}
+
+function solveLUBtn(){
+  try{
+    const {A,b}=readInputs(); const {x,L,U}=solveLU(A,b);
+    const Linv = inv3(L); const Uinv = inv3(U);
+    $("outLU").innerHTML = `
+      <h4>Método: LU (con pivoteo parcial)</h4>
+      <div class="nice">
+        <h4>Solución (x):</h4>
+        <div class="mono">x = ${fmtArr(x)}</div>
+        ${friendlyInterpretation(x)}
+        <details><summary>Ver L⁻¹</summary>${fmtMat(Linv)}</details>
+        <details><summary>Ver U⁻¹</summary>${fmtMat(Uinv)}</details>
+      </div>`;
+  } catch(e){ $("outLU").textContent = 'Error: '+e.message; }
+}
+
+$("solveInv").addEventListener('click', solveInvBtn);
+$("solveJacobi").addEventListener('click', solveJacobiBtn);
+$("solveSeidel").addEventListener('click', solveSeidelBtn);
+$("solveLU").addEventListener('click', solveLUBtn);
+
+$("drawPlot").addEventListener('click', ()=>{
+  try{
+    const {A,b} = readInputs();
+    const {x} = solveInv(A,b); // punto de intersección
+    const x1=x[0], x2=x[1], x3=x[2];
+
+    // malla centrada en la solución
+    const m = 0.35; const n=40;
+    const x1v = Array.from({length:n},(_,i)=> x1*(1-m) + (x1*(1+m)-x1*(1-m))*i/(n-1));
+    const x2v = Array.from({length:n},(_,i)=> x2*(1-m) + (x2*(1+m)-x2*(1-m))*i/(n-1));
+
+    const X = [], Y = [], Z1=[], Z2=[], Z3=[];
+    for(let i=0;i<n;i++){
+      X[i]=[]; Y[i]=[]; Z1[i]=[]; Z2[i]=[]; Z3[i]=[];
+      for(let j=0;j<n;j++){
+        const xv=x1v[j], yv=x2v[i];
+        X[i][j]=xv; Y[i][j]=yv;
+        Z1[i][j]=(b[0]-A[0][0]*xv-A[0][1]*yv)/A[0][2];
+        Z2[i][j]=(b[1]-A[1][0]*xv-A[1][1]*yv)/A[1][2];
+        Z3[i][j]=(b[2]-A[2][0]*xv-A[2][1]*yv)/A[2][2];
+      }
+    }
+
+    const data = [
+      {type:'surface', x:X, y:Y, z:Z1, showscale:false, opacity:0.7, name:'Plano 1'},
+      {type:'surface', x:X, y:Y, z:Z2, showscale:false, opacity:0.7, name:'Plano 2'},
+      {type:'surface', x:X, y:Y, z:Z3, showscale:false, opacity:0.7, name:'Plano 3'},
+      {type:'scatter3d', x:[x1], y:[x2], z:[x3], mode:'markers+text', text:[`(${x1.toFixed(2)}, ${x2.toFixed(2)}, ${x3.toFixed(2)})`], textposition:'top center', marker:{size:6}, name:'Intersección'}
+    ];
+
+    const layout = {title:'Intersección de los 3 planos', scene:{xaxis:{title:'x1'}, yaxis:{title:'x2'}, zaxis:{title:'x3'}}, margin:{l:0,r:0,b:0,t:40}, paper_bgcolor:'#0f172a', plot_bgcolor:'#0f172a', font:{color:'#e5e7eb'}};
+    Plotly.newPlot('plot3d', data, layout, {responsive:true, displaylogo:false});
+  }catch(e){ $('plot3d').innerText = 'Error: '+e.message; }
+});
+
+// Tabs
+const tabs = document.querySelectorAll('.tab');
+tabs.forEach(btn=>btn.addEventListener('click',()=>{
+  tabs.forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const id = btn.dataset.panel;
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  $('panel-'+id).classList.add('active');
+}));
+
+// Init: cargar defaults de inmediato, incluyendo tolerancia
+fillDefaults();
+
+// ---------------------- Auto‑tests (no intrusivos) ----------------------
+(function selfTests(){
+  try{
+    const A = defaults.A, b = defaults.b;
+    const invX = solveInv(A,b).x;
+    const luX  = solveLU(A,b).x;
+    const jac  = jacobi(A,b, 1e-8, 20000).x;
+    const seid = seidel(A,b, 1e-4, 20000).x;
+    const close = (u,v)=> Math.max(...u.map((ui,i)=>Math.abs(ui-v[i]))) < 1e-3;
+    console.assert(close(invX, luX), 'Test: Inversa y LU deben coincidir');
+    console.assert(close(invX, jac),  'Test: Jacobi debe converger a la misma solución');
+    console.assert(close(invX, seid), 'Test: Seidel debe converger a la misma solución');
+    console.log('Self‑tests OK');
+  }catch(e){ console.warn('Self‑tests fallaron:', e.message); }
+})();
+</script>
+</body>
+</html>
