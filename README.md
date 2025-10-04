@@ -2,7 +2,8 @@
 **Métodos:** Inversa de `A`, **Jacobi**, **Gauss-Seidel**, **LU** (con pivoteo parcial) y **Gráfico 3D** de los planos + punto de intersección.
 
 Sitio de una sola página (HTML + JS) para resolver sistemas lineales **3×3** típicos del ejercicio de canteras. Permite **ingresar datos**, usar **valores por defecto**, ajustar **tolerancia** y **máx. iteraciones**, y visualizar el **gráfico 3D**.
-
+---
+#### sitio web: https://mpomar16.github.io/-DESAFIO-DE-INGENIERIA-CIVIL/
 ---
 
 ## 📄 Enunciado (consigna del ejercicio)
